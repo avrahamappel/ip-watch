@@ -1,0 +1,30 @@
+name: Update dependencies
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # At 00:00 on first day of month
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Run update script
+        run: nix develop --command ./update.sh
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          title: "Update dependencies"
+          commit-message: "Update dependencies"

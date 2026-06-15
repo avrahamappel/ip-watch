@@ -9,12 +9,12 @@
       cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
     in
 
-    flake-parts.lib.mkFlake { inherit inputs; } {
+    flake-parts.lib.mkFlake { inherit inputs; } ({ withSystem, ... }: {
       imports = [ flake-parts.flakeModules.modules ];
 
       systems = [ "x86_64-linux" ];
 
-      perSystem = { pkgs, lib, config, ... }: {
+      perSystem = { pkgs, lib, ... }: {
         packages.default =
           let
             inherit (pkgs) rustPlatform;
@@ -48,19 +48,24 @@
         };
       };
 
-      flake.modules.homeManager.default = { config, ... }: {
-        home.packages = [ config.packages.default ];
+      flake.modules.homeManager.default = { pkgs, ... }:
+        let
+          ip-watch = withSystem pkgs.stdenv.hostPlatform.system
+            ({ config, ... }: config.packages.default);
+        in
+        {
+          home.packages = [ ip-watch ];
 
-        systemd.user.services.ip-watch = {
-          Unit.Description = cargoToml.package.description;
+          systemd.user.services.ip-watch = {
+            Unit.Description = cargoToml.package.description;
 
-          Service = {
-            ExecStart = "ip-watch";
-            Restart = "on-failure";
+            Service = {
+              ExecStart = "ip-watch";
+              Restart = "on-failure";
+            };
+
+            Install.WantedBy = [ "default.target" ];
           };
-
-          Install.WantedBy = [ "default.target" ];
         };
-      };
-    };
+    });
 }

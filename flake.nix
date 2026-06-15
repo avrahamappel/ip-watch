@@ -10,6 +10,8 @@
     in
 
     flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ flake-parts.flakeModules.modules ];
+
       systems = [ "x86_64-linux" ];
 
       perSystem = { pkgs, lib, config, ... }: {
@@ -44,20 +46,20 @@
             rustfmt
           ];
         };
+      };
 
-        hmModules.default = {
-          home.packages = [ config.packages.default ];
+      flake.modules.home-manager.default = { config, ... }: {
+        home.packages = [ config.packages.default ];
 
-          home.services.ip-watch = {
-            Unit.Description = cargoToml.package.description;
+        home.services.ip-watch = {
+          Unit.Description = cargoToml.package.description;
 
-            Service = {
-              ExecStart = "ip-watch";
-              Restart = "on-failure";
-            };
-
-            Install.WantedBy = "default.target";
+          Service = {
+            ExecStart = "ip-watch";
+            Restart = "on-failure";
           };
+
+          Install.WantedBy = "default.target";
         };
       };
     };

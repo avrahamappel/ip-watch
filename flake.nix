@@ -59,7 +59,7 @@
             Restart = "on-failure";
           };
 
-          Install.WantedBy = "default.target";
+          Install.WantedBy = [ "default.target" ];
         };
       };
     };

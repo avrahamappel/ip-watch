@@ -48,7 +48,7 @@
         };
       };
 
-      flake.modules.home-manager.default = { config, ... }: {
+      flake.modules.homeManager.default = { config, ... }: {
         home.packages = [ config.packages.default ];
 
         home.services.ip-watch = {

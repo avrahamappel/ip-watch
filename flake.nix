@@ -51,7 +51,7 @@
       flake.modules.homeManager.default = { config, ... }: {
         home.packages = [ config.packages.default ];
 
-        home.services.ip-watch = {
+        systemd.user.services.ip-watch = {
           Unit.Description = cargoToml.package.description;
 
           Service = {

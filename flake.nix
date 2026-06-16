@@ -48,7 +48,7 @@
         };
       };
 
-      flake.modules.homeManager.default = { pkgs, ... }:
+      flake.modules.homeManager.default = { lib, pkgs, ... }:
         let
           ip-watch = withSystem pkgs.stdenv.hostPlatform.system
             ({ config, ... }: config.packages.default);
@@ -60,7 +60,7 @@
             Unit.Description = cargoToml.package.description;
 
             Service = {
-              ExecStart = "ip-watch";
+              ExecStart = lib.getExe ip-watch;
               Restart = "on-failure";
               RestartSec = 5;
             };

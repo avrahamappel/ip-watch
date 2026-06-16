@@ -62,6 +62,7 @@
             Service = {
               ExecStart = "ip-watch";
               Restart = "on-failure";
+              RestartSec = 5;
             };
 
             Install.WantedBy = [ "default.target" ];

@@ -33,7 +33,13 @@
 
             src = lib.cleanSource ./.;
 
-            cargoDeps = rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
+            cargoDeps = rustPlatform.importCargoLock {
+              lockFile = ./Cargo.lock;
+            };
+
+            meta = {
+              mainProgram = cargoToml.package.name;
+            };
           };
 
         devShells.default = pkgs.mkShell {

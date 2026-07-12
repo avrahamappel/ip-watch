@@ -4,14 +4,13 @@ use std::thread;
 use std::time::Duration;
 
 use dirs::runtime_dir;
-use notify_rust::{Notification, Timeout};
-use open::that;
+
+mod notification;
+
+use notification::notify_ip_changed;
 
 /// URL that returns the public IP as plain text.
 const IP_API: &str = "https://api.ipify.org?format=text";
-
-/// URL that we want to link to when the IP changes.
-const OPENDNS_URL: &str = "https://dashboard.opendns.com/settings";
 
 /// How often we poll the IP (seconds). 300 s = 5 min.
 const POLL_INTERVAL: u64 = 300;
@@ -46,27 +45,6 @@ fn fetch_current_ip() -> Option<String> {
         resp.text().ok().map(|t| t.trim().to_owned())
     } else {
         None
-    }
-}
-
-/// Send a notification with a button that opens the OpenDNS dashboard.
-fn notify_ip_changed(old: &str, new: &str) {
-    let notification = Notification::new()
-        .summary("Public IP changed")
-        .body(&format!("{old} -> {new}"))
-        .icon("network-workgroup")
-        .action("default", "Go to OpenDNS settings")
-        .hint(notify_rust::Hint::Category("device".into()))
-        .timeout(Timeout::Default)
-        .show();
-
-    if let Ok(n) = notification {
-        // Wait for the user to click the button (blocking call)
-        n.wait_for_action(|action| {
-            if action == "default" {
-                let _ = that(OPENDNS_URL);
-            }
-        });
     }
 }
 

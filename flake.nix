@@ -39,7 +39,7 @@
             meta.mainProgram = cargoToml.package.name;
           };
 
-          devShells.default = craneLib.mkShell {
+          devShells.default = craneLib.devShell {
             packages = with pkgs; [
               bacon
               clippy

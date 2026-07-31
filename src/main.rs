@@ -24,7 +24,9 @@ fn state_file() -> PathBuf {
 
 /// Read the previously stored IP (if any).
 fn read_last_ip() -> Option<String> {
-    fs::read_to_string(state_file()).ok().map(|s| s.trim().to_owned())
+    fs::read_to_string(state_file())
+        .ok()
+        .map(|s| s.trim().to_owned())
 }
 
 /// Write the current IP to the state file.
@@ -37,7 +39,7 @@ fn fetch_current_ip() -> Option<String> {
     let resp = match reqwest::blocking::get(IP_API) {
         Err(e) => {
             eprintln!("{e}");
-            return None
+            return None;
         },
         Ok(resp) => resp,
     };
@@ -47,6 +49,9 @@ fn fetch_current_ip() -> Option<String> {
         None
     }
 }
+
+/// URL that we want to link to when the IP changes.
+const OPENDNS_SETTINGS_URL: &str = "https://dashboard.opendns.com/settings";
 
 fn main() {
     // Run the loop in a background thread so the process can be started
@@ -59,11 +64,19 @@ fn main() {
                 if let Some(prev) = last_ip && prev != current_ip {
                     // IP changed, notify the user
                     eprintln!("IP changed from previous: {prev}");
-                    notify_ip_changed(&prev, &current_ip);
+                    notify_ip_changed(
+                        &prev,
+                        &current_ip,
+                        || {
+                            let _ = open::that(OPENDNS_SETTINGS_URL);
+                        },
+                        || {
+                            // Store the newest value for the next iteration
+                            write_current_ip(&current_ip);
+                        },
+                    );
                 }
-                // Store the newest value for the next iteration
-                write_current_ip(&current_ip);
-            }
+            },
             None => eprintln!("Failed to fetch public IP"),
         }
 

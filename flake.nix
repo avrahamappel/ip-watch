@@ -2,7 +2,6 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    crane.url = "github:ipetkov/crane";
   };
 
   outputs = { self, flake-parts, ... }@inputs:
@@ -15,11 +14,9 @@
 
       systems = [ "x86_64-linux" ];
 
-      perSystem = { pkgs, ... }:
+      perSystem = { lib, pkgs, ... }:
 
         let
-          craneLib = inputs.crane.mkLib pkgs;
-
           version = builtins.concatStringsSep "-" [
             (builtins.substring 0 4 self.lastModifiedDate)
             (builtins.substring 4 2 self.lastModifiedDate)
@@ -27,23 +24,28 @@
             (self.shortRev or self.dirtyShortRev)
           ];
 
-          src = craneLib.cleanCargoSource ./.;
-
-          cargoArtifacts = craneLib.buildDepsOnly { inherit src; };
+          src = lib.cleanSource ./.;
         in
 
         {
-          packages.default = craneLib.buildPackage {
-            inherit version src cargoArtifacts;
+          packages.default = pkgs.rustPlatform.buildRustPackage {
+            pname = cargoToml.package.name;
+            inherit version src;
+
+            cargoDeps = pkgs.rustPlatform.importCargoLock {
+              lockFile = ./Cargo.lock;
+            };
 
             meta.mainProgram = cargoToml.package.name;
           };
 
-          devShells.default = craneLib.devShell {
+          devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               bacon
+              cargo
               clippy
               rust-analyzer
+              rustc
               rustfmt
             ];
           };

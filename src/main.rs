@@ -3,8 +3,6 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
 
-use dirs::runtime_dir;
-
 mod notification;
 
 use notification::notify_ip_changed;
@@ -17,7 +15,10 @@ const POLL_INTERVAL: u64 = 300;
 
 /// File that stores the last seen IP.
 fn state_file() -> PathBuf {
-    let mut path = runtime_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
+    let mut path = dirs::state_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
+    path.push("ip-watch");
+    fs::create_dir_all(&path).expect("Couldn't create ip-watch state directory");
+
     path.push("ip-watch.last");
     path
 }
@@ -56,31 +57,37 @@ const OPENDNS_SETTINGS_URL: &str = "https://dashboard.opendns.com/settings";
 fn main() {
     // Run the loop in a background thread so the process can be started
     // from a systemd user service without blocking systemd.
-    thread::spawn(|| loop {
-        match fetch_current_ip() {
-            Some(current_ip) => {
-                eprintln!("Reported IP is: {current_ip}");
-                let last_ip = read_last_ip();
-                if let Some(prev) = last_ip && prev != current_ip {
-                    // IP changed, notify the user
-                    eprintln!("IP changed from previous: {prev}");
-                    notify_ip_changed(
-                        &prev,
-                        &current_ip,
-                        || {
-                            let _ = open::that(OPENDNS_SETTINGS_URL);
-                        },
-                        || {
-                            // Store the newest value for the next iteration
-                            write_current_ip(&current_ip);
-                        },
-                    );
-                }
-            },
-            None => eprintln!("Failed to fetch public IP"),
-        }
+    thread::spawn(|| {
+        loop {
+            match fetch_current_ip() {
+                None => eprintln!("Failed to fetch public IP"),
+                Some(current_ip) => {
+                    eprintln!("Reported IP is: {current_ip}");
+                    if let Some(prev) = read_last_ip() {
+                        if prev != current_ip {
+                            // IP changed, notify the user
+                            eprintln!("IP changed from previous: {prev}");
+                            notify_ip_changed(
+                                &prev,
+                                &current_ip,
+                                || {
+                                    let _ = open::that(OPENDNS_SETTINGS_URL);
+                                },
+                                || {
+                                    // Store the newest value for the next iteration
+                                    write_current_ip(&current_ip);
+                                },
+                            );
+                        }
+                    } else {
+                        eprintln!("No previous IP stored. Writing to disk");
+                        write_current_ip(&current_ip);
+                    }
+                },
+            }
 
-        thread::sleep(Duration::from_secs(POLL_INTERVAL));
+            thread::sleep(Duration::from_secs(POLL_INTERVAL));
+        }
     });
 
     // Keep the process alive

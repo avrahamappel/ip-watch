@@ -1,14 +1,23 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    cargo2nix = {
+      url = "github:cargo2nix/cargo2nix";
+      # inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, ... }:
+  outputs = { self, nixpkgs, cargo2nix, ... }:
     let
+      inherit (nixpkgs) lib;
+
       systems = [ "x86_64-linux" ];
 
-      forAllSystems = f: nixpkgs.lib.genAttrs systems
-        (system: f (import nixpkgs { inherit system; }));
+      forAllSystems = f: lib.genAttrs systems
+        (system: f {
+          inherit system;
+          pkgs = import nixpkgs { inherit system; };
+        });
 
       cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
 
@@ -19,11 +28,11 @@
         (self.shortRev or self.dirtyShortRev or "dirty")
       ];
 
-      src = nixpkgs.lib.cleanSource ./.;
+      src = lib.cleanSource ./.;
     in
 
     {
-      packages = forAllSystems (pkgs: {
+      packages = forAllSystems ({ pkgs, ... }: {
         default = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           inherit version src;
@@ -40,18 +49,36 @@
         };
       });
 
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = with pkgs; [
-            bacon
-            cargo
-            clippy
-            rust-analyzer
-            rustc
-            rustfmt
-          ];
-        };
-      });
+      devShells = forAllSystems ({ pkgs, system, ... }:
+        let
+          cargo2nix' = cargo2nix.packages.${system}.default;
+
+          # Automatically call cargo2nix when Cargo.lock changes
+          cargo = pkgs.writeShellScriptBin "cargo" ''
+            prev_modified="$(stat -c '%Y' Cargo.lock)"
+
+            cargo "$@"
+
+            now_modified="$(stat -c '%Y' Cargo.lock)"
+
+            if [[ $now_modified -gt $prev_modified ]]; then
+              cargo2nix
+            fi
+          '';
+        in
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              bacon
+              cargo
+              cargo2nix'
+              clippy
+              rust-analyzer
+              rustc
+              rustfmt
+            ];
+          };
+        });
 
       modules.homeManager.default = { lib, pkgs, ... }:
         let

@@ -32,6 +32,10 @@
             pname = cargoToml.package.name;
             inherit version src;
 
+            buildInputs = with pkgs; [ aws-lc.dev ];
+
+            nativeBuildInputs = [ pkgs.pkg-config ];
+
             cargoDeps = pkgs.rustPlatform.importCargoLock {
               lockFile = ./Cargo.lock;
             };

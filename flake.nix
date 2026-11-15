@@ -1,64 +1,61 @@
 {
   inputs = {
-    flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
-  outputs = { self, flake-parts, ... }@inputs:
+  outputs = { self, nixpkgs, ... }:
     let
-      cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
-    in
-
-    flake-parts.lib.mkFlake { inherit inputs; } ({ withSystem, ... }: {
-      imports = [ flake-parts.flakeModules.modules ];
-
       systems = [ "x86_64-linux" ];
 
-      perSystem = { lib, pkgs, ... }:
+      forAllSystems = f: nixpkgs.lib.genAttrs systems
+        (system: f (import nixpkgs { inherit system; }));
 
-        let
-          version = builtins.concatStringsSep "-" [
-            (builtins.substring 0 4 self.lastModifiedDate)
-            (builtins.substring 4 2 self.lastModifiedDate)
-            (builtins.substring 6 2 self.lastModifiedDate)
-            (self.shortRev or self.dirtyShortRev or "dirty")
-          ];
+      cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
 
-          src = lib.cleanSource ./.;
-        in
+      version = builtins.concatStringsSep "-" [
+        (builtins.substring 0 4 self.lastModifiedDate)
+        (builtins.substring 4 2 self.lastModifiedDate)
+        (builtins.substring 6 2 self.lastModifiedDate)
+        (self.shortRev or self.dirtyShortRev or "dirty")
+      ];
 
-        {
-          packages.default = pkgs.rustPlatform.buildRustPackage {
-            pname = cargoToml.package.name;
-            inherit version src;
+      src = nixpkgs.lib.cleanSource ./.;
+    in
 
-            buildInputs = with pkgs; [ aws-lc.dev ];
+    {
+      packages = forAllSystems (pkgs: {
+        default = pkgs.rustPlatform.buildRustPackage {
+          pname = cargoToml.package.name;
+          inherit version src;
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = with pkgs; [ aws-lc.dev ];
 
-            cargoDeps = pkgs.rustPlatform.importCargoLock {
-              lockFile = ./Cargo.lock;
-            };
+          nativeBuildInputs = [ pkgs.pkg-config ];
 
-            meta.mainProgram = cargoToml.package.name;
+          cargoDeps = pkgs.rustPlatform.importCargoLock {
+            lockFile = ./Cargo.lock;
           };
 
-          devShells.default = pkgs.mkShell {
-            packages = with pkgs; [
-              bacon
-              cargo
-              clippy
-              rust-analyzer
-              rustc
-              rustfmt
-            ];
-          };
+          meta.mainProgram = cargoToml.package.name;
         };
+      });
 
-      flake.modules.homeManager.default = { lib, pkgs, ... }:
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.mkShell {
+          packages = with pkgs; [
+            bacon
+            cargo
+            clippy
+            rust-analyzer
+            rustc
+            rustfmt
+          ];
+        };
+      });
+
+      modules.homeManager.default = { lib, pkgs, ... }:
         let
-          ip-watch = withSystem pkgs.stdenv.hostPlatform.system
-            ({ config, ... }: config.packages.default);
+          ip-watch = self.packages.${ pkgs.stdenv.hostPlatform.system}.default;
         in
         {
           home.packages = [ ip-watch ];
@@ -75,5 +72,5 @@
             Install.WantedBy = [ "default.target" ];
           };
         };
-    });
+    };
 }
